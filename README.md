@@ -31,6 +31,15 @@ python manage.py runserver 0.0.0.0:8000
 The API will be available at:
 - http://127.0.0.1:8000/api/next-challenge/
 
+`GET /api/next-challenge/` returns a challenge with `id`, `imageUrl`, and
+`options`. The correct answer is not included in this response.
+
+Submit an answer with `POST /api/challenges/{challengeId}/answer/` and a JSON
+body containing `answer`. A correct answer adds 5 points, increments the
+streak, and returns the next challenge. An incorrect answer leaves the score
+unchanged, resets the streak, and returns `nextChallenge: null`. The score,
+streak, and active challenge are tracked in the Django session.
+
 ## Stop the server
 If the server is running in a terminal, press:
 

@@ -8,7 +8,7 @@ import random
 import logging
 import time
 import uuid
-from typing import List
+from typing import List, Optional, Tuple
 
 from django.core.files.base import ContentFile
 from django.http import JsonResponse
@@ -39,9 +39,8 @@ def _build_options(correct_answer: str) -> List[str]:
     return options
 
 
-@api_view(["GET"])
-def next_challenge(request):
-    """Create a new challenge task and return its image and answer options."""
+def _create_challenge(request) -> Optional[Tuple[ImageTask, List[str]]]:
+    """Create a challenge and return it with its answer options."""
     request_id = str(uuid.uuid4())
     started_at = time.perf_counter()
     correct_answer = random.choice(FIGURE_NAMES)
@@ -79,7 +78,7 @@ def next_challenge(request):
             correct_answer,
             (time.perf_counter() - started_at) * 1000,
         )
-        return JsonResponse({"detail": "No se pudo generar la imagen"}, status=500)
+        return None
 
     options = _build_options(task.correct_answer)
     logger.info(
@@ -92,13 +91,88 @@ def next_challenge(request):
         len(image_bytes),
         (time.perf_counter() - started_at) * 1000,
     )
+    return task, options
+
+
+def _public_challenge(task: ImageTask, options: List[str]) -> dict:
+    return {
+        "id": str(task.pk),
+        "imageUrl": task.image_url,
+        "options": options,
+    }
+
+
+@api_view(["GET"])
+def next_challenge(request):
+    """Create a challenge and return its public details."""
+    created = _create_challenge(request)
+    if created is None:
+        return JsonResponse({"detail": "No se pudo generar la imagen"}, status=500)
+
+    task, options = created
+    request.session["current_challenge_id"] = str(task.pk)
+    request.session.setdefault("challenge_score_total", 0)
+    request.session.setdefault("challenge_streak", 0)
+
+    return JsonResponse(
+        _public_challenge(task, options)
+    )
+
+
+@api_view(["POST"])
+def submit_challenge_answer(request, challenge_id: uuid.UUID):
+    """Validate an answer and return the updated session score."""
+    answer = request.data.get("answer")
+    if not isinstance(answer, str) or not answer.strip():
+        return JsonResponse(
+            {"detail": "El campo 'answer' es obligatorio y debe ser una cadena."},
+            status=400,
+        )
+
+    try:
+        task = ImageTask.objects.get(pk=challenge_id, status="completed")
+    except ImageTask.DoesNotExist:
+        return JsonResponse({"detail": "Desafío no encontrado."}, status=404)
+
+    if request.session.get("current_challenge_id") != str(task.pk):
+        return JsonResponse({"detail": "Desafío no encontrado."}, status=404)
+
+    score_total = request.session.get("challenge_score_total", 0)
+    streak = request.session.get("challenge_streak", 0)
+    if answer != task.correct_answer:
+        request.session["challenge_streak"] = 0
+        return JsonResponse(
+            {
+                "challengeId": str(task.pk),
+                "isCorrect": False,
+                "feedback": "No es correcto. Inténtalo otra vez.",
+                "scoreDelta": 0,
+                "scoreTotal": score_total,
+                "streak": 0,
+                "nextChallenge": None,
+            }
+        )
+
+    created = _create_challenge(request)
+    if created is None:
+        return JsonResponse({"detail": "No se pudo generar la imagen"}, status=500)
+
+    next_task, next_options = created
+    updated_score = score_total + 5
+    updated_streak = streak + 1
+    request.session["current_challenge_id"] = str(next_task.pk)
+    request.session["challenge_score_total"] = updated_score
+    request.session["challenge_streak"] = updated_streak
 
     return JsonResponse(
         {
-            "id": str(prompt),
-            "imageUrl": task.image_url,
-            "correctAnswer": task.correct_answer,
-            "options": options,
+            "challengeId": str(task.pk),
+            "isCorrect": True,
+            "feedback": "¡Correcto! Sumas 5 puntos.",
+            "scoreDelta": 5,
+            "scoreTotal": updated_score,
+            "streak": updated_streak,
+            "nextChallenge": _public_challenge(next_task, next_options),
         }
     )
 
