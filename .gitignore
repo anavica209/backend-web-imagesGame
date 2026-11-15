@@ -1,0 +1,7 @@
+/notebooks/
+/media/
+
+.env
+.env.*
+!.env.example
+*.env
