@@ -73,7 +73,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://192.168.1.9:5173",
+    "http://localhost:5173",
+]
 CORS_ALLOW_CREDENTIALS = True
 
 REST_FRAMEWORK = {

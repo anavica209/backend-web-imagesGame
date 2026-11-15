@@ -111,6 +111,26 @@ class NextChallengeAPITests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_cors_preflight_allows_configured_origins_only(self):
+        allowed_origin = "http://192.168.1.9:5173"
+        allowed_response = self.client.options(
+            "/api/next-challenge/",
+            HTTP_ORIGIN=allowed_origin,
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+        )
+        self.assertEqual(
+            allowed_response["Access-Control-Allow-Origin"],
+            allowed_origin,
+        )
+        self.assertEqual(allowed_response["Access-Control-Allow-Credentials"], "true")
+
+        denied_response = self.client.options(
+            "/api/next-challenge/",
+            HTTP_ORIGIN="http://example.com",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="GET",
+        )
+        self.assertNotIn("Access-Control-Allow-Origin", denied_response)
+
     def _set_session(self, challenge, score, streak):
         session = self.client.session
         session["current_challenge_id"] = str(challenge.pk)
