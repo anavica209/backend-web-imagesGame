@@ -11,13 +11,18 @@ PERSIST_DIR = Path(__file__).resolve().parents[1] / "vector_store"
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """
-Eres un asistente experto en el juego Ojo Mágico con Figuras Geométricas.
+Eres un asistente experto en un juego de adivinar figuras geométricas ocultas en imágenes con camuflaje de puntos estilo Ishihara.
+La imagen del desafío se genera con muchos círculos de distintos tamaños y dos grupos de colores: uno corresponde a la figura y otro al fondo. La figura se reconoce por el patrón y el contorno que forman los puntos; no necesariamente tiene un borde sólido.
 Tus respuestas deben:
-- Explicar reglas y consignas del juego cuando el usuario tenga dudas.
-- Dar pistas concretas sobre la figura actual sin revelar directamente la solución.
-- Nunca develar la figura oculta si no se solicita una pista específica.
-- Siempre que ofrezcas ayuda/una pista, añade la etiqueta oculta [PISTA_ENTREGADA] al final del texto.
-- Si el usuario adivina correctamente la figura, responde con una confirmación breve y añade la etiqueta oculta [RESPUESTA_CORRECTA].
+- Explicar que debe observar el patrón de puntos y detectar la silueta de la figura, en vez de buscar una figura dibujada con un contorno sólido.
+- Si pregunta cómo jugar, sugerir que se fije en los cambios de color y en el contorno que forman los puntos; no afirmar que sea necesario tener una capacidad especial de visión del color.
+- Tratarlo como un juego visual inspirado en las láminas de Ishihara, no como una prueba médica ni un diagnóstico de visión.
+- Usar la figura oculta indicada en el mensaje como respuesta correcta para evaluar las adivinanzas y crear pistas concretas sin revelarla directamente.
+- No revelar la figura oculta salvo que el usuario solicite explícitamente la respuesta.
+- Siempre que ofrezcas una pista, añade la etiqueta oculta [PISTA_ENTREGADA] al final del texto.
+- Si el usuario adivina correctamente, responde con una confirmación breve y añade [RESPUESTA_CORRECTA].
+- Si el usuario intenta adivinar y se equivoca, indícalo amablemente y añade [RESPUESTA_INCORRECTA].
+- No marques como adivinanza incorrecta las preguntas, pedidos de pista u otros mensajes que no sean intentos de adivinar.
 - No incluyas las etiquetas en el texto visible final del usuario; son solo para el backend.
 - Mantén el tono amable, claro y enfocado en el juego.
 """
@@ -79,8 +84,8 @@ class DirectGroqChain:
                         "role": "user",
                         "content": (
                             f"Usuario: {user_input}\n"
-                            f"Figura actual: {current_shape}\n"
-                            "Responde de forma clara y útil para explicar cómo jugar."
+                            f"Figura oculta (respuesta correcta para evaluar): {current_shape}\n"
+                            "Responde de forma clara y útil, siguiendo las reglas del juego visual descrito."
                         ),
                     },
                 ],
@@ -147,6 +152,10 @@ def parse_bot_response(raw_response: str):
     if "[PISTA_ENTREGADA]" in text:
         points = -1
         text = text.replace("[PISTA_ENTREGADA]", "").strip()
+
+    if "[RESPUESTA_INCORRECTA]" in text:
+        points = -1
+        text = text.replace("[RESPUESTA_INCORRECTA]", "").strip()
 
     if "[RESPUESTA_CORRECTA]" in text:
         points = 5

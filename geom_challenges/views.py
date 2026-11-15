@@ -130,7 +130,10 @@ def chat(request):
         chain = get_chat_chain()
         raw_response = chain.run({"user_input": user_message, "current_shape": current_shape})
         response_text, points = parse_bot_response(raw_response)
-        result = {5: "respuesta_correcta", -1: "pista", 0: "respuesta_normal"}.get(points, "respuesta_normal")
+        if "[RESPUESTA_INCORRECTA]" in raw_response:
+            result = "respuesta_incorrecta"
+        else:
+            result = {5: "respuesta_correcta", -1: "pista", 0: "respuesta_normal"}.get(points, "respuesta_normal")
 
         logger.info(
             "chat_interaction_completed request_id=%s current_shape=%s result=%s points=%s response=%s response_length=%s duration_ms=%.2f status_code=200",
